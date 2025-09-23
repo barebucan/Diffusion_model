@@ -1,0 +1,22 @@
+intermiate imagees/
+intermediate_images/
+
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tif
+*.tiff
+*.webp
+*.svg
+
+*.pt
+*.pth
+
+# Allow images used in markdown under docs/images
+!docs/images/
+!docs/images/**
+stl10_data/
+mnist_data/
+runs/

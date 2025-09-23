@@ -68,17 +68,17 @@ I grid-searched inference parameters: scheduler type, `eta` (DDIM/DPMS-like), an
 - **DDIM (`eta=0.0`) underperformed** for this setup; stochastic sampling (`eta=1.0`) gave more coherent results.
 - **Best CFG ≈ 6.0**: higher scales added detail (e.g., car lights) but overconfidently collapsed and hurt other classes.
 
-Run the sweep utility to regenerate grids under `docs/images/sweeps/`:
+Run the sweep utility to regenerate grids under `docs/images/`:
 
 ```bash
 python inference_sweeps.py \
   --checkpoint artifacts/models/stl10_checkpoint_epoch_2000.pt \
-  --schedulers cosine linear \
+  --schedulers linear \
   --cfg 0.0 1.5 3.0 6.0 9.0 \
   --eta 0.0 1.0 \
   --labels 0 1 2 3 4 5 6 7 8 9 10 \
   --seed 42 \
-  --out docs/images/sweeps
+  --out docs/images
 ```
 
 ### Figures (final state)
@@ -99,22 +99,18 @@ python inference_sweeps.py \
 ![Fixed-seed class grid CFG=6](docs/images/epoch_2000_step_80000_fixed_seed_grid_cfg6.0.png)
 
 
-### Sweep comparisons (cosine scheduler)
+### Sweep comparisons (linear scheduler)
 - CFG=6.0 at eta=0.0 vs eta=1.0:
 
-![cosine cfg6.0 eta0.0](docs/images/sweeps/cosine/grid_cosine_cfg6.0_eta0.0.png)
+![linear cfg6.0 eta0.0](docs/images/grid_linear_cfg6.0_eta0.0.png)
 
-![cosine cfg6.0 eta1.0](docs/images/sweeps/cosine/grid_cosine_cfg6.0_eta1.0.png)
+![linear cfg6.0 eta1.0](docs/images/grid_linear_cfg6.0_eta1.0.png)
 
-- eta=1.0 at CFG≈1, 3, 6, 9 (files available: 1.5, 3.0, 6.0, 9.0):
+- eta=1.0 at CFG≈1.5 and 6.0 (available files):
 
-![cosine cfg1.5 eta1.0](docs/images/sweeps/cosine/grid_cosine_cfg1.5_eta1.0.png)
+![linear cfg1.5 eta1.0](docs/images/grid_linear_cfg1.5_eta1.0.png)
 
-![cosine cfg3.0 eta1.0](docs/images/sweeps/cosine/grid_cosine_cfg3.0_eta1.0.png)
-
-![cosine cfg6.0 eta1.0](docs/images/sweeps/cosine/grid_cosine_cfg6.0_eta1.0.png)
-
-![cosine cfg9.0 eta1.0](docs/images/sweeps/cosine/grid_cosine_cfg9.0_eta1.0.png)
+![linear cfg6.0 eta1.0](docs/images/grid_linear_cfg6.0_eta1.0.png)
 
 
 ### Quick sampling

@@ -5,12 +5,23 @@ import json
 from typing import List, Dict, Optional, Tuple
 
 import torch
+from config import IMAGE_NET
 
+def create_imagenet_classes():
+    CLASSES = []
+    for class_name in os.listdir(os.path.join("docs", 'data', 'ImageNET')):
+        if os.path.isdir(os.path.join("docs", 'data', 'ImageNET', class_name)):
+            s = class_name.replace('_', ' ')
+            CLASSES.append(s)
+    return CLASSES
 
-STL10_CLASSES: List[str] = [
-    'airplane', 'bird', 'car', 'cat', 'deer',
-    'dog', 'horse', 'monkey', 'ship', 'truck'
-]
+if IMAGE_NET:
+    CLASSES = create_imagenet_classes()
+else:
+    CLASSES = [
+        'airplane', 'bird', 'car', 'cat', 'deer',
+        'dog', 'horse', 'monkey', 'ship', 'truck'
+    ]
 
 
 def _ensure_clip_available():
@@ -59,6 +70,7 @@ def _load_classes_from_file(path: str) -> List[str]:
 
 
 def build_prompts(classes: List[str], template: str = "a photo of a {}", uncond_prompt: str = "") -> Dict[str, List[str]]:
+    
     prompts = [template.format(c) for c in classes]
     return {
         'class_prompts': prompts,
@@ -71,7 +83,7 @@ def encode_prompts_with_clip(classes: List[str], model_name: str = 'ViT-B/32', d
                               template: str = "a photo of a {}", uncond_prompt: str = "") -> Dict:
     _ensure_clip_available()
     import clip
-
+    
     if len(classes) == 0:
         raise ValueError("Classes list is empty.")
 
@@ -80,7 +92,7 @@ def encode_prompts_with_clip(classes: List[str], model_name: str = 'ViT-B/32', d
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)
-
+    
     prompts = build_prompts(classes, template=template, uncond_prompt=uncond_prompt)
     class_prompts: List[str] = prompts['class_prompts']
 
@@ -95,7 +107,6 @@ def encode_prompts_with_clip(classes: List[str], model_name: str = 'ViT-B/32', d
     # Normalize (common for CLIP usage)
     text_emb_norm = torch.nn.functional.normalize(text_emb, dim=-1)
     text_emb_uncond_norm = torch.nn.functional.normalize(text_emb_uncond, dim=-1)
-
     # Stack class + uncond to match index convention (0..N-1 classes, N=uncond)
     emb = torch.cat([text_emb, text_emb_uncond], dim=0).cpu()
     emb_norm = torch.cat([text_emb_norm, text_emb_uncond_norm], dim=0).cpu()
@@ -197,40 +208,40 @@ def _resolve_classes(dataset: Optional[str], classes_arg: Optional[str], classes
         return classes, (dataset or 'custom')
     # Fallback presets
     if dataset and _sanitize_identifier(dataset) == 'stl10':
-        return list(STL10_CLASSES), 'stl10'
+        return list(CLASSES), 'stl10'
     # No classes provided; error
     raise ValueError("No classes specified. Provide --classes or --classes-file, or set --dataset stl10 for defaults.")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Prepare CLIP text embeddings for arbitrary class lists (dataset-aware).')
-    parser.add_argument('--dataset', type=str, default=None, help='Dataset tag (e.g., stl10, imagenet1k). Used for metadata and output paths.')
-    parser.add_argument('--classes', type=str, default=None, help='Comma-separated class names.')
-    parser.add_argument('--classes-file', type=str, default=None, help='Path to classes file (.txt lines or imagenet_class_index.json).')
-    parser.add_argument('--model', type=str, default='ViT-B/32', help='CLIP model name (e.g., ViT-B/32, ViT-L/14).')
-    parser.add_argument('--template', type=str, default='a photo of a {}', help='Prompt template. Must contain {} placeholder.')
-    parser.add_argument('--uncond-prompt', type=str, default='', help='Unconditional prompt text.')
-    parser.add_argument('--device', type=str, default=None, help='cuda, cpu, or mps (auto if omitted).')
-    parser.add_argument('--out-dir', type=str, default=None, help='Output directory (default: artifacts/clip/{dataset}).')
-    parser.add_argument('--save-basename', type=str, default=None, help='Override base file name without extension.')
+    # parser = argparse.ArgumentParser(description='Prepare CLIP text embeddings for arbitrary class lists (dataset-aware).')
+    # parser.add_argument('--dataset', type=str, default=None, help='Dataset tag (e.g., stl10, imagenet1k). Used for metadata and output paths.')
+    # parser.add_argument('--classes', type=str, default=None, help='Comma-separated class names.')
+    # parser.add_argument('--classes-file', type=str, default=None, help='Path to classes file (.txt lines or imagenet_class_index.json).')
+    # parser.add_argument('--model', type=str, default='ViT-B/32', help='CLIP model name (e.g., ViT-B/32, ViT-L/14).')
+    # parser.add_argument('--template', type=str, default='a photo of a {}', help='Prompt template. Must contain {} placeholder.')
+    # parser.add_argument('--uncond-prompt', type=str, default='', help='Unconditional prompt text.')
+    # parser.add_argument('--device', type=str, default=None, help='cuda, cpu, or mps (auto if omitted).')
+    # parser.add_argument('--out-dir', type=str, default=None, help='Output directory (default: artifacts/clip/{dataset}).')
+    # parser.add_argument('--save-basename', type=str, default=None, help='Override base file name without extension.')
 
-    args = parser.parse_args()
+    # args = parser.parse_args()
 
     try:
-        classes, dataset = _resolve_classes(args.dataset, args.classes, args.classes_file)
+        classes, dataset = CLASSES, 'imagenet'
         obj = encode_prompts_with_clip(
             classes=classes,
-            model_name=args.model,
-            device=args.device,
-            template=args.template,
-            uncond_prompt=args.uncond_prompt,
+            model_name='ViT-B/32',
+            device='cuda',
+            template='a photo of a {}',
+            uncond_prompt='',
         )
     except Exception as e:
         print(f"[error] Failed to encode prompts with CLIP: {e}")
         sys.exit(1)
 
     try:
-        torch_path, npz_path = save_embeddings(obj, dataset=dataset, out_dir=args.out_dir, base_name=args.save_basename)
+        torch_path, npz_path = save_embeddings(obj, dataset=dataset, out_dir='artifacts/clip', base_name='clip_text_emb_imagenet_vitb32')
     except Exception as e:
         print(f"[error] Failed to save embeddings: {e}")
         sys.exit(1)

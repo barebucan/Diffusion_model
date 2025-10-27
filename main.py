@@ -307,8 +307,6 @@ def main():
 
 
 if __name__ == '__main__':
-<<<<<<< HEAD
     main()
-=======
-    main()
->>>>>>> b209955 (First commit)
+
+

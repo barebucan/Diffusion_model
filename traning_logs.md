@@ -294,3 +294,98 @@ final_out = res_out + cross_attn_out
 - Observations:
   - Images are sharper and clearer with more fine details.
   - Still not good enough overall; further improvements are needed.
+
+---
+
+## Observation: Epoch length vs quality and overfitting (2025-09-24)
+
+- Summary:
+  - Best visual quality around ~1000 epochs (generations looked great).
+  - By ~3000 epochs, sample quality degraded; signs of overfitting likely due to the small dataset.
+- Evidence:
+  - Fixed-seed grids and reconstructions near 1000 epochs are strong.
+  - At 3000–3200 epochs, diversity and fidelity worsened compared to ~1000.
+- Guidance:
+  - For this dataset size, training much beyond ~1000 epochs tends to hurt quality.
+  - Prefer early stopping around ~1000 or use stronger regularization/augmentation or a lower LR if training longer.
+
+---
+
+## Update: Transferred 1200/3600 epoch artifacts and VAE training note (2025-09-27)
+
+- Data/training setup:
+  - Trained on the full STL10 train + test split at 96×96.
+  - Latent diffusion with VAE; images normalized to [-1, 1].
+- Artifacts moved under `docs/images/` and `docs/data/`:
+  - Epoch 1200 images: see `docs/images/epoch_1200_step_122400_fixed_seed_grid_cfg6.0.png` and related panels.
+  - Epoch 3600 images: see `docs/images/epoch_3600_step_1_stl10_collage.png` and `docs/images/epoch_3600_step_367200_fixed_seed_grid_cfg6.0.png`.
+  - Checkpoints archived under `artifacts/models/` for these epochs.
+- Observations:
+  - Results are the best so far, but still lack overall sharpness.
+  - Deepening the U‑Net proved useful: more details are captured and edges are sharper.
+  - Suggested next steps: further increase model capacity carefully (width/attention) and/or apply stronger augmentation or regularization to improve sharpness without overfitting.
+
+---
+
+## Update: ImageNet adaptation + CLIP embeddings + VAE latents (2025-09-27)
+
+- Changed:
+  - Adapted code and data pipeline for ImageNet 10-class setup (mapped to selected classes; exclude `uncond` from dataset labels).
+- Added:
+  - Precomputed CLIP ViT-B/32 text embeddings for all used ImageNet classes (+ unconditional). Saved to `artifacts/clip/clip_text_emb_imagenet_vitb32.pt` and `artifacts/clip/clip_text_emb_imagenet_vitb32.npz`.
+  - Pre-encoded the entire ImageNet subset into VAE latents. Saved to `docs/data/imagenet_latents.pt`.
+- Training:
+  - Started training with the same core parameters as the STL10 LDM run (v-prediction objective, 500-step cosine schedule, CFG training with p_uncond=0.2, EMA, AdamW + warmup+cosine LR).
+  - Plan fewer total epochs since the dataset is much larger; expect earlier convergence.
+- Notes:
+  - Continue to monitor fixed-seed class grids and reconstructions; adjust total epochs based on validation signals.
+
+---
+
+## Incident: First ImageNet run collapse (2025-09-27)
+
+- Outcome:
+  - Failed run; generations collapsed to texture-like patterns with weak/no class guidance.
+- Evidence:
+  - Generation sweep shows noise/textures across timesteps without emerging class structure.
+  - Fixed-seed class grids do not align with requested labels.
+- Probable cause:
+  - Learning rate set too high for the larger dataset and number of classes, causing early instability.
+- Next steps:
+  - Reduce learning rate and/or increase warmup duration; keep grad clipping at 1.0.
+  - Re-run with the same core schedule and monitor the sweep/grid early to validate stability.
+  [text](traning_logs.md) ![text](docs/images/epoch_4_step_16872_fixed_seed_grid_cfg6.0.png) ![text](docs/images/epoch_4_step_1_stl10_collage.png) ![text](docs/images/epoch_4_reconstruction_sweep.png)
+
+---
+
+- Date/Run: 2025-10-05 (resume after epoch 35)
+  - Changed:
+    - Training: resumed from `stl10_checkpoint_epoch_35.pt`; continue with same hyperparameters and schedule.
+  - Notes:
+    - Monitoring indicates continued improvement beyond epoch 35 (loss trending down; visuals improving). Will keep training under current settings and reassess after the next checkpoint.
+
+---
+
+- Date/Run: 2025-10-13 (dataset frequency analysis)
+  - Added:
+    - Computed and visualized the average power spectrum per STL10 class (FFT magnitude, log-scale) to diagnose frequency content and potential aliasing/texture bias.
+    - Archived figure under `artifacts/analysis/spectrum_for_each_folder.png`.
+  - Notes:
+    - Use this to guide augmentation and model capacity decisions (e.g., antialiasing on resize, sharpening penalties, or attention width). No training hyperparameters changed.
+
+---
+
+- Date/Run: 2025-10-14 (enable low-t rewarding)
+  - Changed:
+    - Loss weighting: enabled per-sample weighting proportional to exp(-k·t) after warmup
+    - Criterion: switched to reduction='none' to apply timestep weights, then mean
+  - Params:
+    - LOW_T_REWARDING_WARMUP_EPOCHS: 20
+    - LOW_T_REWARDING_WARMUP_WEIGHT (k): 0.01
+    - USING_LOW_T_REWARDING: True
+  - Rationale:
+    - Reward lower timesteps (closer to denoised images) to encourage sharper, high-frequency details in outputs.
+    - Observed slight blurriness at fine scales; this biases gradients toward late denoising steps where edges/textures are decided.
+  - Implementation notes:
+    - Logging added in `main_stl10.py` to announce activation and parameters.
+    - Weighting active only after warmup epochs; falls back to standard MSE before that.

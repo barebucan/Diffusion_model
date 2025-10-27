@@ -99,6 +99,12 @@ python inference_sweeps.py \
 ![Fixed-seed class grid CFG=6](docs/images/epoch_2000_step_80000_fixed_seed_grid_cfg6.0.png)
 
 
+### Frequency spectrum analysis
+Quick diagnostic of per-class average power spectra (FFT magnitude, log-scale) used to inspect frequency bias in STL10.
+
+![Frequency spectrum per class](artifacts/analysis/spectrum_for_each_folder.png)
+
+
 ### Sweep comparisons (linear scheduler)
 - CFG=6.0 at eta=0.0 vs eta=1.0:
 

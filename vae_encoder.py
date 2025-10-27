@@ -22,13 +22,39 @@ def get_stl10_dataset() -> torchvision.datasets.STL10:
     # Match training transforms: map [0,1] -> [-1, 1]
     trans = transforms.Compose([
         transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), 
+    ])
+
+    trans_flip = transforms.Compose([
+        transforms.RandomHorizontalFlip(1.0),
+        transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
-    dataset = torchvision.datasets.STL10(root='stl10_data', split='train', download=True, transform=trans)
-    dataset_test = torchvision.datasets.STL10(root='stl10_data', split='test', download=True, transform=trans)
-    combined_dataset = torch.utils.data.ConcatDataset([dataset, dataset_test])
+
+    dataset = torchvision.datasets.STL10(root='stl10_data', split='train', download=True, transform=trans_flip)
+    dataset_test = torchvision.datasets.STL10(root='stl10_data', split='test', download=True, transform=trans_flip)
+    dataset_flip = torchvision.datasets.STL10(root='stl10_data', split='train', download=True, transform=trans_flip)
+    dataset_flip_test = torchvision.datasets.STL10(root='stl10_data', split='test', download=True, transform=trans_flip)
+    
+    combined_dataset = torch.utils.data.ConcatDataset([dataset, dataset_test, dataset_flip, dataset_flip_test])
     return combined_dataset
 
+
+def get_imagenet_dataset_from_dir(root_dir: str = os.path.join("docs", 'data', 'ImageNET'), image_size: int = 256):
+    """
+    Loads a folder-per-class dataset from root_dir using ImageFolder.
+    Expected layout:
+      root_dir/
+        class_a/ *.jpg, *.png, ...
+        class_b/ *.jpg, *.png, ...
+
+    Images are resized and center-cropped to a square `image_size`, then mapped to [-1, 1].
+    """
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    ])
+    return torchvision.datasets.ImageFolder(root=root_dir, transform=transform)
 
 def denormalize(x: torch.Tensor) -> torch.Tensor:
     # from [-1,1] -> [0,1]
@@ -68,7 +94,7 @@ def reconstruct_with_vae(images: torch.Tensor, vae_id: str, device: torch.device
 
 @torch.no_grad()
 def encode_dataset(
-    dataset: torchvision.datasets.STL10,
+    dataset: torch.utils.data.Dataset,
     vae_id: str,
     device: torch.device,
     output_path: str,
@@ -135,39 +161,7 @@ def save_comparison_grid(originals: List[torch.Tensor], reconstructions: List[to
     plt.savefig(out_path, bbox_inches='tight', dpi=150)
     plt.close(fig)
 
-
-def main(num_images: int = 10,
-         vae_id: str = 'stabilityai/sd-vae-ft-ema',
-         output_path: str = os.path.join('docs', 'images', 'stl10_vae_recon.png'),
-         seed: int = 42) -> None:
-    random.seed(seed)
-    torch.manual_seed(seed)
-
-    device = get_device()
-    dataset = get_stl10_dataset()
-
-    # Sample unique indices
-    num_images = max(1, num_images)
-    indices = random.sample(range(len(dataset)), k=min(num_images, len(dataset)))
-    images: List[torch.Tensor] = []
-    for idx in indices:
-        x, _ = dataset[idx]
-        images.append(x)
-
-    batch = torch.stack(images, dim=0).to(device)
-
-    with torch.no_grad():
-        recon = reconstruct_with_vae(batch, vae_id=vae_id, device=device)
-
-    # Optional: print simple reconstruction MSE per image (in [-1,1] space)
-    mse = torch.mean((batch - recon) ** 2, dim=(1, 2, 3)).detach().cpu()
-    print('Per-image MSE:', ', '.join(f"{v:.4f}" for v in mse.tolist()))
-    print(f"Avg MSE: {mse.mean().item():.4f}")
-
-    save_comparison_grid([img.cpu() for img in batch], [img.cpu() for img in recon], output_path)
-    print(f"Saved comparison grid to {output_path}")
-
-def enocde() -> None:
+def enocde_stl10() -> None:
     seed = 42
     vae_id = 'stabilityai/sd-vae-ft-ema'
     random.seed(seed)
@@ -178,7 +172,17 @@ def enocde() -> None:
     encoded_output_path = os.path.join('docs', 'data', 'stl10_latents.pt')
     encode_dataset(dataset = dataset, vae_id = vae_id, device = device, output_path = encoded_output_path)
 
+def enocde_imagenet() -> None:
+    seed = 42
+    vae_id = 'stabilityai/sd-vae-ft-ema'
+    random.seed(seed)
+    torch.manual_seed(seed)
+    device = get_device()
+    dataset = get_imagenet_dataset_from_dir(root_dir=os.path.join("docs", 'data', 'ImageNET'), image_size=256)
+    encoded_output_path = os.path.join('docs', 'data', 'imagenet_latents.pt')
+    encode_dataset(dataset = dataset, vae_id = vae_id, device = device, output_path = encoded_output_path)
+
 if __name__ == '__main__':
-    enocde()
+    enocde_imagenet()
 
 
